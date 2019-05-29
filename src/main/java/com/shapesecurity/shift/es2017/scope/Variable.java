@@ -17,6 +17,7 @@
 package com.shapesecurity.shift.es2017.scope;
 
 import com.shapesecurity.functional.data.ImmutableList;
+import org.jetbrains.annotations.NotNull;
 
 import javax.annotation.Nonnull;
 

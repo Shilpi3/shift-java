@@ -136,7 +136,8 @@ public class DeserializerTest {
         testHelperFromScriptCode("0");
         testHelperFromScriptCode("1.5");
         testHelperFromScriptCode("/[a-z]/i");
-        testHelperFromScriptCode("/(?!.){0,}?/u");
+        testHelperFromScriptCode("/(?!.){0,}?/");
+        testHelperFromScriptCode("/(.){0,}?/u");
         testHelperFromScriptCode("('x')");
         testHelperFromScriptCode("('\\\n')");
     }

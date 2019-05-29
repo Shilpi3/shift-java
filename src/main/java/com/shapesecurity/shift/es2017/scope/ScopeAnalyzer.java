@@ -26,8 +26,17 @@ import com.shapesecurity.shift.es2017.reducer.MonoidalReducer;
 import com.shapesecurity.shift.es2017.reducer.StrictnessReducer;
 import com.shapesecurity.shift.es2017.scope.Declaration.Kind;
 import com.shapesecurity.shift.es2017.scope.ScopeAnalyzer.State;
+import org.jetbrains.annotations.NotNull;
 
 import javax.annotation.Nonnull;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Spliterator;
+import java.util.Spliterators;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 public final class ScopeAnalyzer extends MonoidalReducer<State> {
     private final ImmutableSet<Node> sloppySet;
@@ -254,6 +263,7 @@ public final class ScopeAnalyzer extends MonoidalReducer<State> {
                 HashTable.emptyUsingEquality(),
                 HashTable.emptyUsingEquality(),
                 ImmutableList.empty(),
+
                 false,
                 ImmutableList.empty(),
                 ImmutableList.empty(),
@@ -452,6 +462,12 @@ public final class ScopeAnalyzer extends MonoidalReducer<State> {
             return finish(astNode, scopeType, false, false);
         }
 
+        @Nonnull
+        private static <T> List<Pair<String, T>> iterableOfPairsToSortedList(@Nonnull Iterable<Pair<String, T>> list) {
+            return StreamSupport.stream(Spliterators.spliteratorUnknownSize(list.iterator(), Spliterator.ORDERED), false)
+                .sorted(Comparator.comparing(o -> o.left)).collect(Collectors.toList());
+        }
+
         private State finish(@Nonnull Node astNode, @Nonnull Scope.Type scopeType, boolean resolveArguments, boolean shouldB33) {
             ImmutableList<Variable> variables = ImmutableList.empty();
 
@@ -460,10 +476,10 @@ public final class ScopeAnalyzer extends MonoidalReducer<State> {
             HashTable<String, ImmutableList<Declaration>> potentiallyVarScopedFunctionDeclarations = this.potentiallyVarScopedFunctionDeclarations;
             ImmutableList<Scope> children = this.children;
 
-            for (Pair<String, ImmutableList<Declaration>> name :  this.blockScopedDeclarations.entries()) {
+            for (Pair<String, ImmutableList<Declaration>> name : this.blockScopedDeclarations.entries()) {
                 potentiallyVarScopedFunctionDeclarations = potentiallyVarScopedFunctionDeclarations.remove(name.left());
             }
-            for (Pair<String, ImmutableList<Declaration>> fdecl :  this.functionDeclarations.entries()) {
+            for (Pair<String, ImmutableList<Declaration>> fdecl : this.functionDeclarations.entries()) {
                 Maybe<ImmutableList<Declaration>> maybeConflict = this.potentiallyVarScopedFunctionDeclarations.get(fdecl.left());
                 if (maybeConflict.isJust()) {
                     ImmutableList<Declaration> existingDeclarations = maybeConflict.fromJust();
@@ -484,7 +500,10 @@ public final class ScopeAnalyzer extends MonoidalReducer<State> {
                 case ParameterExpression:
                     // resolve only block-scoped free declarations
                     ImmutableList<Variable> variables3 = variables;
-                    for (Pair<String, ImmutableList<Declaration>> entry2 : this.blockScopedDeclarations.merge(this.functionDeclarations, ImmutableList::append).entries()) {
+                    ImmutableList<Pair<String, ImmutableList<Declaration>>> declarationEntries = this.blockScopedDeclarations.merge(this.functionDeclarations, ImmutableList::append).entries();
+                    List<Pair<String, ImmutableList<Declaration>>> declarationEntriesSorted = iterableOfPairsToSortedList(declarationEntries);
+
+                    for (Pair<String, ImmutableList<Declaration>> entry2 : declarationEntriesSorted) {
                         String name2 = entry2.left();
                         ImmutableList<Declaration> declarations2 = entry2.right();
                         ImmutableList<Reference> references2 = freeIdentifiers.get(name2).map(referenceList -> (ImmutableList<Reference>)referenceList).orJust(ImmutableList.empty());
@@ -506,7 +525,9 @@ public final class ScopeAnalyzer extends MonoidalReducer<State> {
 
                     // top-level lexical declarations in scripts are not globals, so create a separate scope for them
                     if (scopeType == Scope.Type.Script) {
-                        for (Pair<String, ImmutableList<Declaration>> entry : newDeclarations.entries()) {
+                        List<Pair<String, ImmutableList<Declaration>>> newDeclarationsSorted = iterableOfPairsToSortedList(newDeclarations);
+
+                        for (Pair<String, ImmutableList<Declaration>> entry : newDeclarationsSorted) {
                             String name = entry.left();
                             ImmutableList<Declaration> declarations = entry.right();
                             ImmutableList<Reference> references = freeIdentifiers.get(name).map(referenceList -> (ImmutableList<Reference>)referenceList).orJust(ImmutableList.empty());
@@ -533,7 +554,9 @@ public final class ScopeAnalyzer extends MonoidalReducer<State> {
                         newDeclarations = newDeclarations.merge(potentiallyVarScopedFunctionDeclarations, ImmutableList::append);
                     }
 
-                    for (Pair<String, ImmutableList<Declaration>> entry : newDeclarations.entries()) {
+                    List<Pair<String, ImmutableList<Declaration>>> newDeclarationsSorted = iterableOfPairsToSortedList(newDeclarations);
+
+                    for (Pair<String, ImmutableList<Declaration>> entry : newDeclarationsSorted) {
                         String name = entry.left();
                         ImmutableList<Declaration> declarations = entry.right();
                         ImmutableList<Reference> references = freeIdentifiers.get(name).map(referenceList -> (ImmutableList<Reference>)referenceList).orJust(ImmutableList.empty());
@@ -743,6 +766,10 @@ public final class ScopeAnalyzer extends MonoidalReducer<State> {
 
     @SuppressWarnings("ProtectedInnerClass")
     private static final class StateMonoid implements Monoid<State> {
+
+        public StateMonoid() {
+        }
+
         @Override
         @Nonnull
         public State identity() {
